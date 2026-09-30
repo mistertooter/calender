@@ -1,0 +1,127 @@
+"""Colorful 3:4 desktop calendar. Run: python instagram_calendar.py"""
+
+import calendar
+from datetime import date
+import tkinter as tk
+
+W, H = 900, 1200
+BG = "#10152e"
+WHITE = "#f9f9ff"
+MUTED = "#aab5d6"
+COLORS = ["#ef5da8", "#9d72f5", "#43c6e8", "#59d7b2", "#ffcc70", "#ff8b83", "#8994f7"]
+
+
+class CalendarApp:
+    def __init__(self, root):
+        self.root = root
+        self.today = date.today()
+        self.year, self.month = self.today.year, self.today.month
+        root.title("Colorful Calendar • 3:4")
+        root.geometry("750x1000")
+        root.minsize(450, 600)
+        self.canvas = tk.Canvas(root, bg=BG, highlightthickness=0)
+        self.canvas.pack(fill="both", expand=True)
+        self.canvas.bind("<Configure>", lambda event: self.draw())
+        self.canvas.bind("<Button-1>", self.click)
+        root.bind("<Left>", lambda event: self.change_month(-1))
+        root.bind("<Right>", lambda event: self.change_month(1))
+        self.draw()
+
+    def change_month(self, offset):
+        index = self.year * 12 + self.month - 1 + offset
+        self.year, zero_month = divmod(index, 12)
+        self.month = zero_month + 1
+        self.draw()
+
+    def click(self, event):
+        width, height = self.canvas.winfo_width(), self.canvas.winfo_height()
+        if not width or not height:
+            return
+        x, y = event.x * W / width, event.y * H / height
+        if 103 <= y <= 190:
+            if 56 <= x <= 160:
+                self.change_month(-1)
+            elif 740 <= x <= 844:
+                self.change_month(1)
+        if 1070 <= y <= 1155 and 310 <= x <= 590:
+            self.year, self.month = self.today.year, self.today.month
+            self.draw()
+
+    def draw(self):
+        c = self.canvas
+        c.delete("all")
+        width, height = max(c.winfo_width(), 1), max(c.winfo_height(), 1)
+        sx, sy = width / W, height / H
+
+        def rect(x1, y1, x2, y2, fill, radius=0, outline=""):
+            # Rounded rectangles use smooth polygons and work on standard Tkinter.
+            r = radius
+            points = [x1+r,y1, x2-r,y1, x2,y1, x2,y1+r,
+                      x2,y2-r, x2,y2, x2-r,y2, x1+r,y2,
+                      x1,y2, x1,y2-r, x1,y1+r, x1,y1]
+            c.create_polygon(*[v * (sx if i % 2 == 0 else sy)
+                               for i, v in enumerate(points)],
+                             fill=fill, outline=outline, smooth=True)
+
+        def text(x, y, value, size, color=WHITE, weight="normal", anchor="center"):
+            c.create_text(x*sx, y*sy, text=value, fill=color,
+                          font=("Arial", max(8, round(size*min(sx, sy))), weight),
+                          anchor=anchor)
+
+        # Rich layered header and a subtle field of decorative stars.
+        rect(0, 0, W, 300, "#202954")
+        for i in range(28):
+            x = (i * 173 + 43) % W
+            y = (i * 79 + 21) % 285
+            radius = 2 + i % 3
+            c.create_oval((x-radius)*sx, (y-radius)*sy, (x+radius)*sx,
+                          (y+radius)*sy, fill="#52649b", outline="")
+        rect(42, 36, 858, 280, "#283568", 35)
+        text(450, 77, "YOUR MONTH AT A GLANCE", 17, "#80e4df", "bold")
+        text(450, 146, f"{calendar.month_name[self.month]} {self.year}", 51, WHITE, "bold")
+        text(450, 218, "Plan • Create • Make it happen", 21, MUTED)
+        rect(58, 108, 150, 187, "#3a477d", 22)
+        rect(750, 108, 842, 187, "#3a477d", 22)
+        text(104, 146, "‹", 49)
+        text(796, 146, "›", 49)
+
+        # Monday-first grid has six stable rows so every month fits identically.
+        weekdays = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+        cell_w, cell_h, gap = 103, 96, 13
+        left, top = 51, 400
+        for col, label in enumerate(weekdays):
+            x = left + col*(cell_w+gap)
+            rect(x, 333, x+cell_w, 378, COLORS[col], 14)
+            text(x+cell_w/2, 355, label, 17, "#10152e", "bold")
+
+        weeks = calendar.Calendar(firstweekday=0).monthdatescalendar(self.year, self.month)
+        while len(weeks) < 6:
+            last = weeks[-1][-1]
+            weeks.append([date.fromordinal(last.toordinal()+i) for i in range(1, 8)])
+
+        for row, week in enumerate(weeks):
+            for col, day in enumerate(week):
+                x = left + col*(cell_w+gap)
+                y = top + row*(cell_h+gap)
+                in_month = day.month == self.month
+                is_today = day == self.today
+                fill = COLORS[col] if is_today else ("#2b365d" if in_month else "#1b2342")
+                rect(x, y, x+cell_w, y+cell_h, fill, 19)
+                number_color = "#11162d" if is_today else (WHITE if in_month else "#627096")
+                text(x+cell_w/2, y+42, str(day.day), 32, number_color, "bold")
+                if is_today:
+                    text(x+cell_w/2, y+77, "TODAY", 12, "#11162d", "bold")
+                elif in_month and col >= 5:
+                    c.create_oval((x+47)*sx, (y+73)*sy, (x+56)*sx,
+                                  (y+82)*sy, fill=COLORS[col], outline="")
+
+        rect(50, 1065, 850, 1160, "#202a50", 25)
+        text(200, 1112, "●  TODAY", 19, "#59d7b2", "bold")
+        text(470, 1112, self.today.strftime("%A, %B %d"), 20, WHITE)
+        text(450, 1182, "Tap arrows or use ← → keys • Tap footer to return to today", 14, MUTED)
+
+
+if __name__ == "__main__":
+    window = tk.Tk()
+    CalendarApp(window)
+    window.mainloop()
